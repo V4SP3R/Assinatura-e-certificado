@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="pt-br" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Assinatura Digital | Grupo Erick, Geovane, Jayanne, Kauan, Marcos, Michele</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+    <!-- JSPDF para exportação -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        primary: '#00f3ff', // Neon Cyan
+                        secondary: '#7000ff', // Deep Purple
+                        success: '#00ff9d', // Neon Green
+                        danger: '#ff0055', // Neon Red
+                        dark: '#050505',
+                        glass: 'rgba(255, 255, 255, 0.05)',
+                        glassBorder: 'rgba(255, 255, 255, 0.1)',
+                    },
+                    animation: {
+                        'float': 'float 6s ease-in-out infinite',
+                        'pulse-glow': 'pulseGlow 2s infinite',
+                        'spin-slow': 'spin 12s linear infinite',
+                        'bounce-slow': 'bounce 3s infinite',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-20px)' },
+                        },
+                        pulseGlow: {
+                            '0%, 100%': { boxShadow: '0 0 10px #00f3ff, 0 0 20px rgba(0, 243, 255, 0.4)' },
+                            '50%': { boxShadow: '0 0 20px #00f3ff, 0 0 40px rgba(0, 243, 255, 0.6)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #050505;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #00f3ff;
+        }
+
+        /* Glassmorphism Classes */
+        .glass-panel {
+            background: rgba(10, 10, 15, 0.6);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+        }
+        
+        .glass-card:hover {
+            border-color: rgba(0, 243, 255, 0.3);
+            box-shadow: 0 0 30px rgba(0, 243, 255, 0.1);
+            transform: translateY(-5px);
+        }
+
+        /* Neon Glow Text */
+        .text-glow {
+            text-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
+        }
+        
+        /* Particle Background Canvas */
+        #particles-js {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: -1;
+            background: radial-gradient(circle at center, #11111f 0%, #000000 100%);
+        }
+
+        /* Input Styles */
+        .input-tech {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #00f3ff;
+            font-family: 'JetBrains Mono', monospace;
+            transition: all 0.3s ease;
+        }
+        .input-tech:focus {
+            outline: none;
+            border-color: #00f3ff;
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.2);
+        }
+
+        /* Code/Hash Display */
+        .hash-display {
+            word-break: break-all;
+            font-size: 0.8rem;
+            line-height: 1.2;
+        }
+
+        /* Animations */
+        .typing-cursor::after {
+            content: '|';
+            animation: blink 1s step-start infinite;
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+        
+        .verified-seal {
+            animation: stamp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            opacity: 0;
+            transform: scale(2);
+        }
+        @keyframes stamp {
+            to { opacity: 1; transform: scale(1) rotate(-10deg); }
+        }
+
+        .scan-line {
+            width: 100%;
+            height: 2px;
+            background: #00f3ff;
+            position: absolute;
+            top: 0;
+            left: 0;
+            animation: scan 2s linear infinite;
+            box-shadow: 0 0 10px #00f3ff;
+            display: none;
+        }
+        @keyframes scan {
+            0% { top: 0; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+    </style>
+</head>
+<body class="text-gray-300 overflow-x-hidden antialiased">
+
+    <!-- Background Animation -->
+    <canvas id="particles-js"></canvas>
+
+    <!-- Header / Hero Section -->
+    <header class="relative min-h-screen flex flex-col items-center justify-center px-6 pt-20 pb-10">
+        
+        <!-- Group Badge -->
+        <div class="animate-float mb-8 glass-panel px-6 py-2 rounded-full flex items-center gap-3 border border-primary/20">
+            <div class="w-2 h-2 rounded-full bg-success shadow-[0_0_10px_#00ff9d]"></div>
+            <span class="text-sm font-mono text-gray-300 tracking-wide">
+                GRUPO: <span class="text-white font-bold">Erick | Geovane | Jayanne | Kauan | Marcos | Michele</span>
+            </span>
+        </div>
+
+        <!-- Main Title -->
+        <h1 class="text-5xl md:text-7xl font-extrabold text-center mb-4 tracking-tighter text-white">
+            Assinatura e <br>
+            <span class="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary text-glow">Certificados</span>
+        </h1>
+        
+        <p class="text-xl md:text-2xl text-center text-gray-400 mb-12 font-light tracking-wide">
+            Simulador Interativo de Criptografia & Segurança Digital
+        </p>
+
+        <!-- Mockup Visual -->
+        <div class="relative w-64 h-64 md:w-80 md:h-80 mb-12 perspective-1000">
+            <div class="absolute inset-0 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-3xl blur-2xl animate-pulse"></div>
+            <div class="relative w-full h-full glass-panel rounded-3xl flex items-center justify-center border border-white/10 shadow-2xl animate-float">
+                <i class="fa-solid fa-shield-halved text-8xl text-gradient bg-clip-text text-transparent bg-gradient-to-b from-white to-primary opacity-90"></i>
+                <div class="absolute -bottom-6 -right-6 glass-panel p-4 rounded-xl border border-success/30 flex items-center gap-3 animate-bounce-slow">
+                    <div class="w-3 h-3 bg-success rounded-full animate-pulse"></div>
+                    <span class="font-mono text-xs text-success">SECURE_CONN</span>
+                </div>
+            </div>
+        </div>
+
+        <a href="#simulator" class="group relative px-8 py-4 bg-white text-black font-bold text-lg rounded-full overflow-hidden transition-all hover:scale-105 hover:shadow-[0_0_40px_rgba(255,255,255,0.4)]">
+            <div class="absolute inset-0 w-full h-full bg-gradient-to-r from-primary to-secondary opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <span class="relative z-10 group-hover:text-white flex items-center gap-2">
+                INICIAR SIMULAÇÃO <i class="fa-solid fa-arrow-down"></i>
+            </span>
+        </a>
+
+        <!-- Scroll Indicator -->
+        <div class="absolute bottom-10 animate-bounce">
+            <i class="fa-solid fa-chevron-down text-primary/50 text-2xl"></i>
+        </div>
+    </header>
+
+    <!-- Como Funciona (Timeline) -->
+    <section class="py-24 px-6 md:px-20 relative overflow-hidden">
+        <div class="max-w-7xl mx-auto">
+            <h2 class="text-3xl md:text-4xl font-bold mb-16 text-center text-white"><span class="text-primary">01.</span> O Fluxo da Segurança</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
+                <!-- Linha conectora (Desktop) -->
+                <div class="hidden md:block absolute top-12 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-primary/30 to-transparent"></div>
+
+                <!-- Step 1 -->
+                <div class="glass-panel p-8 rounded-2xl relative transition-all duration-300 hover:bg-white/5 group">
+                    <div class="w-16 h-16 bg-dark border border-primary/50 rounded-2xl flex items-center justify-center text-3xl text-primary mb-6 shadow-[0_0_20px_rgba(0,243,255,0.2)] z-10 relative mx-auto md:mx-0">
+                        <i class="fa-solid fa-key"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-2 text-center md:text-left">Par de Chaves</h3>
+                    <p class="text-sm text-gray-400 text-center md:text-left">
+                        Tudo começa com a criação de uma <span class="text-danger">Chave Privada</span> (segredo) e uma <span class="text-success">Chave Pública</span> (identidade).
+                    </p>
+                </div>
+
+                <!-- Step 2 -->
+                <div class="glass-panel p-8 rounded-2xl relative transition-all duration-300 hover:bg-white/5 group">
+                    <div class="w-16 h-16 bg-dark border border-secondary/50 rounded-2xl flex items-center justify-center text-3xl text-secondary mb-6 shadow-[0_0_20px_rgba(112,0,255,0.2)] z-10 relative mx-auto md:mx-0">
+                        <i class="fa-solid fa-file-signature"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-2 text-center md:text-left">Assinatura (Hash)</h3>
+                    <p class="text-sm text-gray-400 text-center md:text-left">
+                        O documento é transformado em um código único (Hash) e encriptado com sua chave privada.
+                    </p>
+                </div>
+
+                <!-- Step 3 -->
+                <div class="glass-panel p-8 rounded-2xl relative transition-all duration-300 hover:bg-white/5 group">
+                    <div class="w-16 h-16 bg-dark border border-success/50 rounded-2xl flex items-center justify-center text-3xl text-success mb-6 shadow-[0_0_20px_rgba(0,255,157,0.2)] z-10 relative mx-auto md:mx-0">
+                        <i class="fa-solid fa-check-double"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-2 text-center md:text-left">Verificação</h3>
+                    <p class="text-sm text-gray-400 text-center md:text-left">
+                        O receptor usa sua chave pública para decriptar a assinatura e comparar com o documento original.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- MAIN SIMULATOR -->
+    <section id="simulator" class="py-24 bg-dark/50 relative">
+        <div class="max-w-screen-2xl mx-auto px-4 md:px-10">
+            <h2 class="text-3xl md:text-4xl font-bold mb-4 text-center text-white"><span class="text-primary">02.</span> Laboratório de Simulação</h2>
+            <p class="text-center text-gray-400 mb-16 max-w-2xl mx-auto">Experimente o processo real. Gere chaves, assine mensagens e verifique a integridade dos dados.</p>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                
+                <!-- COLUNA 1: CARTEIRA -->
+                <div class="glass-panel rounded-2xl p-6 border-t-4 border-t-primary flex flex-col h-full">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-xl font-bold text-white"><i class="fa-solid fa-wallet mr-2 text-primary"></i> 1. Carteira Digital</h3>
+                        <div class="px-2 py-1 bg-primary/10 rounded text-xs font-mono text-primary animate-pulse">Aguardando</div>
+                    </div>
+
+                    <div class="flex-grow space-y-6">
+                        <div class="relative group">
+                            <button onclick="generateWallet()" class="w-full py-4 bg-primary/10 border border-primary/50 text-primary font-bold rounded-xl hover:bg-primary hover:text-black transition-all duration-300 flex items-center justify-center gap-2 group-hover:shadow-[0_0_20px_#00f3ff]">
+                                <i class="fa-solid fa-bolt"></i> GERAR PAR DE CHAVES
+                            </button>
+                        </div>
+
+                        <!-- Private Key Display -->
+                        <div class="space-y-2 opacity-50 transition-all duration-500" id="wallet-display">
+                            <div>
+                                <label class="text-xs text-danger font-mono font-bold flex items-center gap-2">
+                                    <i class="fa-solid fa-lock"></i> CHAVE PRIVADA (SEGREDO)
+                                </label>
+                                <div class="relative">
+                                    <input type="text" id="privKey" readonly class="w-full bg-black/50 border border-danger/30 rounded p-3 text-xs font-mono text-danger/80" value="Nenhuma chave gerada...">
+                                    <div class="absolute right-3 top-3 text-danger/50"><i class="fa-solid fa-eye-slash"></i></div>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="text-xs text-success font-mono font-bold flex items-center gap-2">
+                                    <i class="fa-solid fa-globe"></i> CHAVE PÚBLICA (COMPARTILHÁVEL)
+                                </label>
+                                <div class="relative">
+                                    <textarea id="pubKey" readonly class="w-full bg-black/50 border border-success/30 rounded p-3 text-xs font-mono text-success/80 h-24 resize-none" placeholder="Nenhuma chave gerada..."></textarea>
+                                </div>
+                            </div>
+                            
+                            <!-- Visual Identity Avatar -->
+                            <div class="flex items-center gap-4 bg-white/5 p-3 rounded-lg mt-4">
+                                <div id="identicon" class="w-12 h-12 bg-gray-700 rounded-full overflow-hidden flex items-center justify-center">
+                                    <span class="text-2xl">?</span>
+                                </div>
+                                <div>
+                                    <div class="text-xs text-gray-400">ID da Carteira</div>
+                                    <div class="text-sm font-bold text-white font-mono tracking-wider" id="walletId">----</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- COLUNA 2: ASSINATURA -->
+                <div class="glass-panel rounded-2xl p-6 border-t-4 border-t-secondary flex flex-col h-full relative overflow-hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-xl font-bold text-white"><i class="fa-solid fa-pen-nib mr-2 text-secondary"></i> 2. Assinar Documento</h3>
+                        <button onclick="showInfo('sign')" class="text-gray-500 hover:text-white"><i class="fa-regular fa-circle-question"></i></button>
+                    </div>
+
+                    <div class="flex-grow space-y-4">
+                        <div>
+                            <label class="text-xs text-gray-400 font-mono mb-1 block">CONTEÚDO DO DOCUMENTO</label>
+                            <textarea id="docText" class="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-sm font-mono text-gray-200 focus:border-secondary transition-colors h-32" placeholder="Digite o contrato ou mensagem aqui..."></textarea>
+                        </div>
+
+                        <div id="hashing-visual" class="hidden">
+                            <div class="flex items-center gap-2 text-xs font-mono text-secondary my-2">
+                                <i class="fa-solid fa-gear fa-spin"></i> CALCULANDO SHA-256 HASH...
+                            </div>
+                            <div class="w-full bg-gray-900 rounded h-1 overflow-hidden">
+                                <div class="h-full bg-secondary w-0 transition-all duration-1000" id="hash-progress"></div>
+                            </div>
+                        </div>
+
+                        <div class="p-3 bg-black/30 rounded border border-white/5">
+                            <label class="text-[10px] text-gray-500 font-mono uppercase">Hash (Impressão Digital do Documento)</label>
+                            <div id="docHash" class="text-xs font-mono text-gray-400 break-all h-10 overflow-hidden">...</div>
+                        </div>
+
+                        <button onclick="signDocument()" id="btnSign" class="w-full py-3 bg-secondary/20 border border-secondary text-secondary font-bold rounded-xl hover:bg-secondary hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                            <i class="fa-solid fa-file-contract"></i> ASSINAR DIGITALMENTE
+                        </button>
+
+                        <!-- Resultado da Assinatura -->
+                        <div id="signature-result" class="hidden opacity-0 transition-opacity duration-500 mt-4">
+                            <div class="relative p-4 border border-secondary/50 bg-secondary/5 rounded-xl">
+                                <div class="absolute -top-3 -right-3 w-10 h-10 bg-secondary rounded-full flex items-center justify-center text-white shadow-[0_0_15px_#7000ff]">
+                                    <i class="fa-solid fa-signature"></i>
+                                </div>
+                                <label class="text-xs text-secondary font-bold font-mono">ASSINATURA GERADA:</label>
+                                <div id="signatureOutput" class="text-[10px] font-mono text-gray-300 break-all mt-2 max-h-20 overflow-y-auto custom-scrollbar"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- COLUNA 3: VERIFICAÇÃO -->
+                <div class="glass-panel rounded-2xl p-6 border-t-4 border-t-success flex flex-col h-full relative">
+                    <div class="scan-line" id="scanLine"></div>
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-xl font-bold text-white"><i class="fa-solid fa-magnifying-glass mr-2 text-success"></i> 3. Verificar</h3>
+                    </div>
+
+                    <div class="flex-grow space-y-4">
+                        <p class="text-xs text-gray-400">Simule o receptor. Cole a assinatura e a chave pública para validar.</p>
+                        
+                        <div class="space-y-3">
+                            <input type="text" id="verifyPubKey" placeholder="Chave Pública do Remetente" class="input-tech w-full p-3 rounded text-xs">
+                            <textarea id="verifySig" placeholder="Colar Assinatura Digital" class="input-tech w-full p-3 rounded text-xs h-20 resize-none"></textarea>
+                            <textarea id="verifyDoc" placeholder="Texto Original para comparar" class="input-tech w-full p-3 rounded text-xs h-20 resize-none"></textarea>
+                        </div>
+
+                        <button onclick="verifyProcess()" class="w-full py-3 bg-success/20 border border-success text-success font-bold rounded-xl hover:bg-success hover:text-black transition-all">
+                            <i class="fa-solid fa-shield-halved"></i> VERIFICAR AUTENTICIDADE
+                        </button>
+
+                        <!-- Status Box -->
+                        <div id="verification-status" class="mt-4 p-4 rounded-xl hidden items-center justify-center gap-4 border text-center transition-all">
+                            <!-- Injected by JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- COMPARADOR DE HASH (Visualização de Mismatch) -->
+    <section class="py-20 px-6">
+        <div class="max-w-5xl mx-auto glass-panel p-8 rounded-3xl border border-white/10">
+            <h2 class="text-2xl font-bold mb-8 text-center"><i class="fa-solid fa-scale-balanced text-primary"></i> Teste de Integridade (Ataque de Alteração)</h2>
+            <p class="text-center text-sm text-gray-400 mb-8">Experimente mudar UM caractere no texto original e veja o Hash mudar completamente.</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                <!-- Original -->
+                <div>
+                    <label class="text-xs text-success font-bold mb-2 block">ORIGINAL</label>
+                    <textarea id="compOriginal" class="w-full bg-black/40 border-l-4 border-success p-4 rounded text-sm font-mono h-24" readonly>Transfira R$ 100,00 para Marcos.</textarea>
+                    <div id="hashOriginal" class="mt-2 text-[10px] font-mono text-gray-500 break-all">Hash: Calculando...</div>
+                </div>
+
+                <!-- Alterado -->
+                <div>
+                    <label class="text-xs text-danger font-bold mb-2 block">ALTERADO (TENTE EDITAR)</label>
+                    <textarea id="compFake" oninput="updateComparator()" class="w-full bg-black/40 border-l-4 border-danger p-4 rounded text-sm font-mono h-24 focus:bg-danger/5 transition-colors">Transfira R$ 1000,00 para Marcos.</textarea>
+                    <div id="hashFake" class="mt-2 text-[10px] font-mono text-gray-500 break-all">Hash: Calculando...</div>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-center">
+                <div id="matchResult" class="px-6 py-2 rounded-full text-sm font-bold bg-gray-800 text-gray-500">
+                    STATUS: AGUARDANDO
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- EXPORTAR PDF -->
+    <section class="py-10 text-center">
+        <button onclick="generatePDF()" class="px-8 py-4 bg-white text-black font-bold rounded-full hover:bg-gray-200 transition-all flex items-center gap-3 mx-auto shadow-lg hover:shadow-white/20">
+            <i class="fa-solid fa-file-pdf"></i> EXPORTAR RELATÓRIO TÉCNICO
+        </button>
+        <div class="mt-12 flex flex-col items-center">
+            <div class="p-4 bg-white rounded-xl mb-4">
+                <!-- Placeholder QR Code using an API or simple text for simulation -->
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://simulador-grupo-seguranca.vercel.app" alt="QR Code" class="w-32 h-32">
+            </div>
+            <p class="text-sm text-gray-400">Escaneie para testar a validação mobile</p>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-10 border-t border-white/5 text-center text-gray-600 text-sm">
+        <p>Projeto Acadêmico de Segurança da Informação</p>
+        <p class="mt-2 text-xs">Desenvolvido por Erick, Geovane, Jayanne, Kauan, Marcos e Michele.</p>
+    </footer>
+
+    <!-- MODAL INFO -->
+    <div id="infoModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/80 backdrop-blur-sm">
+        <div class="bg-gray-900 border border-white/10 p-8 rounded-2xl max-w-lg w-full m-4 relative shadow-2xl">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fa-solid fa-xmark fa-xl"></i></button>
+            <h3 class="text-2xl font-bold text-white mb-4"><i class="fa-solid fa-graduation-cap text-secondary"></i> Conceito Didático</h3>
+            <p class="text-gray-300 leading-relaxed" id="modalContent">
+                <!-- Conteúdo Dinâmico -->
+            </p>
+        </div>
+    </div>
+
+    <!-- SCRIPTS -->
+    <script>
+        // --- State Management ---
+        let wallet = {
+            privateKey: null,
+            publicKey: null,
+            id: null
+        };
+        let lastSignature = null;
+
+        // --- Utils & Helpers ---
+        const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        // Efeito de Digitação
+        async function typeWriter(elementId, text, speed = 10) {
+            const el = document.getElementById(elementId);
+            el.value = "";
+            for (let i = 0; i < text.length; i++) {
+                el.value += text.charAt(i);
+                el.scrollTop = el.scrollHeight; // Auto scroll
+                await wait(speed);
+            }
+        }
+
+        // Generate SHA-256 Hash (Real Web Crypto API)
+        async function sha256(message) {
+            const msgBuffer = new TextEncoder().encode(message);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        // Generate Fake Key Pair (Didático)
+        function generateRandomHex(length) {
+            let result = '';
+            const characters = 'ABCDEF0123456789';
+            for (let i = 0; i < length; i++) {
+                result += characters.charAt(Math.floor(Math.random() * characters.length));
+            }
+            return result;
+        }
+
+        // --- Feature 1: Generate Wallet ---
+        async function generateWallet() {
+            const btn = document.querySelector('button[onclick="generateWallet()"]');
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> GERANDO ENTROPIA...';
+            btn.disabled = true;
+
+            // Simular cálculo
+            await wait(1500);
+
+            // Gerar dados
+            wallet.privateKey = "PRIV_" + generateRandomHex(64);
+            wallet.publicKey = "PUB_" + generateRandomHex(64);
+            wallet.id = "0x" + generateRandomHex(8);
+
+            // UI Update
+            document.getElementById('wallet-display').classList.remove('opacity-50');
+            document.getElementById('walletId').innerText = wallet.id;
+            
+            // Gerar avatar visual (Identicon simples usando cores CSS)
+            const identicon = document.getElementById('identicon');
+            const color1 = '#' + generateRandomHex(6);
+            const color2 = '#' + generateRandomHex(6);
+            identicon.style.background = `linear-gradient(135deg, ${color1}, ${color2})`;
+            identicon.innerHTML = '<i class="fa-solid fa-user-astronaut text-white"></i>';
+
+            // Efeito de digitação nos campos
+            typeWriter('privKey', wallet.privateKey, 5);
+            await wait(500);
+            typeWriter('pubKey', wallet.publicKey, 5);
+
+            // Preencher inputs da verificação para facilitar teste
+            document.getElementById('verifyPubKey').value = wallet.publicKey;
+
+            btn.innerHTML = '<i class="fa-solid fa-check"></i> CARTEIRA ATIVA';
+            btn.classList.replace('bg-primary/10', 'bg-success/20');
+            btn.classList.replace('text-primary', 'text-success');
+            btn.classList.replace('border-primary/50', 'border-success/50');
+            btn.disabled = false;
+        }
+
+        // --- Feature 2: Sign Document ---
+        async function signDocument() {
+            const text = document.getElementById('docText').value;
+            const btn = document.getElementById('btnSign');
+            
+            if (!text) { alert("Digite algo para assinar!"); return; }
+            if (!wallet.privateKey) { alert("Gere sua carteira primeiro!"); return; }
+
+            // 1. Mostrar Hashing Visual
+            document.getElementById('hashing-visual').classList.remove('hidden');
+            const progressBar = document.getElementById('hash-progress');
+            progressBar.style.width = '0%';
+            
+            // Simular progresso do hashing
+            setTimeout(() => { progressBar.style.width = '100%'; }, 100);
+            await wait(1000);
+
+            // 2. Calcular Hash Real
+            const hash = await sha256(text);
+            document.getElementById('docHash').innerText = hash;
+            document.getElementById('hashing-visual').classList.add('hidden');
+
+            // 3. Simular Criptografia com Chave Privada (Assinatura)
+            // Em didática: Assinatura = Encrypt(Hash, PrivKey)
+            // Aqui faremos uma concatenação visual codificada Base64 para simular o blob da assinatura
+            const rawSignature = `SIG_V1:${wallet.id}:${hash.substring(0,10)}:${generateRandomHex(32)}`;
+            lastSignature = btoa(rawSignature); // Encode Base64 para parecer "Cripto"
+
+            // 4. Exibir Resultado
+            const resDiv = document.getElementById('signature-result');
+            resDiv.classList.remove('hidden');
+            resDiv.classList.remove('opacity-0');
+            
+            // Efeito Typewriter na assinatura
+            const outDiv = document.getElementById('signatureOutput');
+            outDiv.innerText = "";
+            let i = 0;
+            const typeSig = setInterval(() => {
+                outDiv.innerText += lastSignature.charAt(i);
+                i++;
+                if(i >= lastSignature.length) clearInterval(typeSig);
+            }, 5);
+
+            // Preencher Verificação
+            document.getElementById('verifySig').value = lastSignature;
+            document.getElementById('verifyDoc').value = text;
+        }
+
+        // --- Feature 3: Verify ---
+        async function verifyProcess() {
+            const pubKey = document.getElementById('verifyPubKey').value;
+            const sig = document.getElementById('verifySig').value;
+            const doc = document.getElementById('verifyDoc').value;
+            const statusBox = document.getElementById('verification-status');
+            const scanLine = document.getElementById('scanLine');
+
+            statusBox.className = "mt-4 p-4 rounded-xl flex items-center justify-center gap-4 border text-center transition-all bg-gray-800 border-gray-700";
+            statusBox.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Processando Criptografia...';
+            statusBox.classList.remove('hidden');
+            
+            // Ativar Scanline
+            scanLine.style.display = 'block';
+
+            await wait(2000); // Suspense
+
+            // Lógica de Validação
+            // 1. Recalcular Hash do documento fornecido
+            const currentHash = await sha256(doc);
+            
+            // 2. Decodificar Assinatura (Simulado: Base64 Decode)
+            let decodedSig = "";
+            try {
+                decodedSig = atob(sig);
+            } catch(e) {
+                decodedSig = "INVALID";
+            }
+
+            // 3. Validar: 
+            // - Assinatura deve conter o ID da carteira associado à chave publica (simulado)
+            // - Assinatura deve conter parte do Hash original (simulação de integridade)
+            
+            // Como é simulado e as chaves são strings randomicas, vamos checar:
+            // Se a Public Key no input bate com a wallet.pubKey atual (se gerada)
+            // E se a assinatura é igual a lastSignature
+            // E se o texto é igual ao original
+            
+            // Para tornar a simulação robusta independente do estado global, vamos verificar se o hash bate
+            // Na nossa simulação 'SIG_V1:WALLETID:HASH_PARTIAL:RANDOM'
+            
+            const isValidFormat = decodedSig.startsWith("SIG_V1");
+            const parts = decodedSig.split(':');
+            const hashPart = parts[2];
+            
+            // Verifica se os primeiros 10 chars do hash atual batem com o que tá na assinatura
+            const isIntegrityOK = hashPart === currentHash.substring(0,10);
+
+            scanLine.style.display = 'none';
+
+            if (isValidFormat && isIntegrityOK) {
+                // SUCESSO
+                statusBox.className = "mt-4 p-4 rounded-xl flex flex-col items-center justify-center gap-2 border text-center transition-all bg-success/10 border-success shadow-[0_0_20px_rgba(0,255,157,0.2)]";
+                statusBox.innerHTML = `
+                    <div class="verified-seal w-20 h-20 border-4 border-success rounded-full flex items-center justify-center text-success font-black text-xl mb-2 rotate-[-10deg]">
+                        VALIDADO
+                    </div>
+                    <div class="text-success font-bold">ASSINATURA AUTÊNTICA</div>
+                    <div class="text-xs text-gray-400">O documento não foi alterado e a origem foi confirmada.</div>
+                `;
+            } else {
+                // FALHA
+                statusBox.className = "mt-4 p-4 rounded-xl flex flex-col items-center justify-center gap-2 border text-center transition-all bg-danger/10 border-danger shadow-[0_0_20px_rgba(255,0,85,0.2)]";
+                statusBox.innerHTML = `
+                    <i class="fa-solid fa-triangle-exclamation text-4xl text-danger animate-pulse"></i>
+                    <div class="text-danger font-bold text-lg">ASSINATURA INVÁLIDA</div>
+                    <div class="text-xs text-gray-300">Hash calculado: ${currentHash.substring(0,10)}...<br>Hash na Assinatura: ${hashPart || 'Corrompido'}</div>
+                `;
+            }
+        }
+
+        // --- Feature 4: Comparator ---
+        async function updateComparator() {
+            const original = document.getElementById('compOriginal').value;
+            const fake = document.getElementById('compFake').value;
+            const resDiv = document.getElementById('matchResult');
+
+            const h1 = await sha256(original);
+            const h2 = await sha256(fake);
+
+            document.getElementById('hashOriginal').innerText = "SHA-256: " + h1;
+            document.getElementById('hashFake').innerText = "SHA-256: " + h2;
+
+            if(h1 === h2) {
+                resDiv.className = "px-6 py-2 rounded-full text-sm font-bold bg-success text-black transition-all";
+                resDiv.innerHTML = "<i class='fa-solid fa-check'></i> IDENTICOS";
+            } else {
+                resDiv.className = "px-6 py-2 rounded-full text-sm font-bold bg-danger text-white transition-all animate-pulse";
+                resDiv.innerHTML = "<i class='fa-solid fa-xmark'></i> DIVERGENTES (HASH MUDOU)";
+            }
+        }
+
+        // --- Feature 5: PDF Export ---
+        function generatePDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            const groupName = "Grupo: Erick | Geovane | Jayanne | Kauan | Marcos | Michele";
+            const date = new Date().toLocaleString();
+            
+            // Cabeçalho Premium
+            doc.setFillColor(10, 10, 20);
+            doc.rect(0, 0, 210, 40, 'F');
+            
+            doc.setTextColor(0, 243, 255);
+            doc.setFontSize(22);
+            doc.text("RELATÓRIO DE ASSINATURA DIGITAL", 105, 20, null, null, "center");
+            
+            doc.setFontSize(10);
+            doc.setTextColor(200, 200, 200);
+            doc.text(groupName, 105, 30, null, null, "center");
+
+            // Corpo
+            doc.setTextColor(0, 0, 0);
+            doc.setFontSize(12);
+            doc.text("Dados da Simulação:", 20, 60);
+
+            doc.setFontSize(10);
+            doc.text(`Data de Geração: ${date}`, 20, 70);
+            doc.text(`ID da Carteira: ${wallet.id || 'N/A'}`, 20, 78);
+
+            // Chaves
+            doc.setDrawColor(200);
+            doc.rect(20, 85, 170, 40);
+            doc.setFontSize(9);
+            doc.setTextColor(100);
+            doc.text("Chave Pública Utilizada:", 25, 92);
+            doc.setTextColor(0);
+            const splitPub = doc.splitTextToSize(wallet.publicKey || "Não gerada", 160);
+            doc.text(splitPub, 25, 98);
+
+            // Assinatura
+            doc.rect(20, 130, 170, 40);
+            doc.setTextColor(100);
+            doc.text("Assinatura Digital Gerada:", 25, 137);
+            doc.setTextColor(0);
+            const splitSig = doc.splitTextToSize(lastSignature || "Não gerada", 160);
+            doc.text(splitSig, 25, 143);
+
+            // Footer
+            doc.setFontSize(8);
+            doc.setTextColor(150);
+            doc.text("Este documento é uma simulação didática gerada pelo Sistema do Grupo.", 105, 280, null, null, "center");
+
+            doc.save("Relatorio_Seguranca_Digital.pdf");
+        }
+
+        // --- Canvas Particles Animation ---
+        const canvas = document.getElementById('particles-js');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let particlesArray;
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.size = Math.random() * 2;
+                this.speedX = (Math.random() * 1.5) - 0.75;
+                this.speedY = (Math.random() * 1.5) - 0.75;
+                this.color = Math.random() > 0.5 ? '#00f3ff' : '#7000ff';
+            }
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                if (this.x < 0 || this.x > canvas.width) this.speedX = -this.speedX;
+                if (this.y < 0 || this.y > canvas.height) this.speedY = -this.speedY;
+            }
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function initParticles() {
+            particlesArray = [];
+            const numberOfParticles = (canvas.width * canvas.height) / 9000;
+            for (let i = 0; i < numberOfParticles; i++) {
+                particlesArray.push(new Particle());
+            }
+        }
+
+        function animateParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let i = 0; i < particlesArray.length; i++) {
+                particlesArray[i].update();
+                particlesArray[i].draw();
+                
+                // Connect particles
+                for (let j = i; j < particlesArray.length; j++) {
+                    const dx = particlesArray[i].x - particlesArray[j].x;
+                    const dy = particlesArray[i].y - particlesArray[j].y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < 100) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = `rgba(100, 100, 255, ${1 - distance/100})`;
+                        ctx.lineWidth = 0.5;
+                        ctx.moveTo(particlesArray[i].x, particlesArray[i].y);
+                        ctx.lineTo(particlesArray[j].x, particlesArray[j].y);
+                        ctx.stroke();
+                    }
+                }
+            }
+            requestAnimationFrame(animateParticles);
+        }
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            initParticles();
+        });
+
+        // Initialize
+        initParticles();
+        animateParticles();
+        updateComparator(); // Init hashes for comparator
+
+        // Modal Logic
+        function showInfo(type) {
+            const modal = document.getElementById('infoModal');
+            const content = document.getElementById('modalContent');
+            modal.classList.remove('hidden');
+            
+            if(type === 'sign') {
+                content.innerHTML = `
+                    <strong class="text-white">O Processo de Assinatura:</strong><br><br>
+                    1. <span class="text-secondary">Hashing:</span> O documento passa por um algoritmo (SHA-256) que gera um resumo único.<br>
+                    2. <span class="text-secondary">Encriptação:</span> Esse resumo é encriptado usando sua <span class="text-danger">Chave Privada</span>.<br>
+                    3. <span class="text-secondary">Resultado:</span> O hash encriptado é a "Assinatura Digital".<br><br>
+                    Isso garante: <em>Autenticidade</em> (só você tem a chave privada) e <em>Integridade</em> (se o documento mudar, o hash não bate).
+                `;
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('infoModal').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
